@@ -12,17 +12,15 @@ pipeline {
             steps {
                 sh '''#!/bin/bash
                 python3 -m venv venv
-                source venv/bin/activate
-                pip install -r requirements.txt
+                ./venv/bin/pip install -r requirements.txt
                 '''
             }
         }
 
         stage('Test') {
             steps {
-                sh '''$!/bin/bash 
-                source venv/bin/activate
-                pytest test_app.py
+                sh '''#!/bin/bash
+                ./venv/bin/pytest test_app.py
                 '''
             }
         }
@@ -33,7 +31,7 @@ pipeline {
                 docker build -t cicd-demo .
                 docker stop cicd-demo || true
                 docker rm cicd-demo || true
-                docker run -d --name cicd-demo -p 5010:5010 cicd-demo
+                docker run -d --name cicd-demo -p 5010:5000 cicd-demo
                 '''
             }
         }
