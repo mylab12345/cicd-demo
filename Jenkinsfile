@@ -4,6 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "cicd-demo"
         IMAGE_TAG = "${env.BUILD_NUMBER}"
+        DOCKERHUB_USER = "dockerhub_mydockerkdb"   // replace with your Docker Hub username
         K8S_NAMESPACE = "cicd"
     }
 
@@ -31,25 +32,19 @@ pipeline {
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             steps {
-                sh '''
-                docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
-                '''
-            }
-        }
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
-        stage('Load Image into Minikube') {
-            steps {
-                sh '''
-                # Ensure Minikube is running
-                minikube status || minikube start --driver=docker
+                    docker build -t $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG .
+                    docker tag $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG $DOCKERHUB_USER/$IMAGE_NAME:latest
 
-                # Load images into Minikube’s Docker
-                minikube image load $IMAGE_NAME:$IMAGE_TAG
-                minikube image load $IMAGE_NAME:latest
-                '''
+                    docker push $DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG
+                    docker push $DOCKERHUB_USER/$IMAGE_NAME:latest
+                    '''
+                }
             }
         }
 
@@ -59,11 +54,14 @@ pipeline {
                 # Create namespace if not exists
                 kubectl get ns $K8S_NAMESPACE || kubectl apply -f k8s/namespace.yaml
 
-                # Apply deployment and service manifests
+                # Update manifests to use Docker Hub image
+                sed -i "s|image:.*|image: $DOCKERHUB_USER/$IMAGE_NAME:latest|" k8s/deployment.yaml
+
+                # Apply manifests
                 kubectl apply -f k8s/deployment.yaml
                 kubectl apply -f k8s/service.yaml
 
-                # Wait for rollout to complete
+                # Wait for rollout
                 kubectl rollout status deployment/$IMAGE_NAME -n $K8S_NAMESPACE --timeout=120s
                 '''
             }
