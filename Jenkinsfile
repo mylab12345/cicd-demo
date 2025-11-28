@@ -20,7 +20,7 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh '''
+                sh '''$!/bin/bash 
                 source venv/bin/activate
                 pytest test_app.py
                 '''
