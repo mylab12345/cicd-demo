@@ -4,14 +4,14 @@ pipeline {
     environment {
         IMAGE_NAME = "cicd-demo"
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        DOCKERHUB_USER = "dockerhub_mydockerkdb"   // replace with your Docker Hub username
+        DOCKERHUB_USER = "mydockerkdb"   // replace with your Docker Hub username
         K8S_NAMESPACE = "cicd"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/mylab12345/cicd-demo.git'
+                git branch: "${env.BRANCH_NAME}", url: 'https://github.com/mylab12345/cicd-demo.git'
             }
         }
 
@@ -32,6 +32,17 @@ pipeline {
             }
         }
 
+        stage('Code Quality') {
+            steps {
+                withSonarQubeEnv('SonarQubeServer') {
+                    sh '''
+                    ./venv/bin/pip install pylint
+                    ./venv/bin/pylint app.py > pylint-report.txt || true
+                    '''
+                }
+            }
+        }
+
         stage('Docker Build & Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
@@ -48,22 +59,18 @@ pipeline {
             }
         }
 
-        stage('Kubernetes Deploy') {
+        stage('Blue/Green Deploy') {
             steps {
-                sh '''
-                # Create namespace if not exists
-                kubectl get ns $K8S_NAMESPACE || kubectl apply -f k8s/namespace.yaml
+                script {
+                    def activeColor = sh(script: "kubectl get svc cicd-demo -n $K8S_NAMESPACE -o=jsonpath='{.spec.selector.version}'", returnStdout: true).trim()
+                    def newColor = (activeColor == "blue") ? "green" : "blue"
 
-                # Update manifests to use Docker Hub image
-                sed -i "s|image:.*|image: $DOCKERHUB_USER/$IMAGE_NAME:latest|" k8s/deployment.yaml
-
-                # Apply manifests
-                kubectl apply -f k8s/deployment.yaml
-                kubectl apply -f k8s/service.yaml
-
-                # Wait for rollout
-                kubectl rollout status deployment/$IMAGE_NAME -n $K8S_NAMESPACE --timeout=120s
-                '''
+                    sh """
+                    kubectl apply -f k8s/deployment-${newColor}.yaml
+                    kubectl rollout status deployment/cicd-demo-${newColor} -n $K8S_NAMESPACE --timeout=120s
+                    kubectl patch svc cicd-demo -n $K8S_NAMESPACE -p '{\"spec\":{\"selector\":{\"app\":\"cicd-demo\",\"version\":\"${newColor}\"}}}'
+                    """
+                }
             }
         }
 
@@ -74,6 +81,12 @@ pipeline {
                 kubectl get svc -n $K8S_NAMESPACE
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline finished with status: ${currentBuild.currentResult}"
         }
     }
 }

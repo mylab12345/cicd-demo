@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cicd-demo-green
+  namespace: cicd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cicd-demo
+      version: green
+  template:
+    metadata:
+      labels:
+        app: cicd-demo
+        version: green
+    spec:
+      containers:
+        - name: cicd-demo
+          image: mydockerkdb/cicd-demo:latest
+          ports:
+            - containerPort: 5000

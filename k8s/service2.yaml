@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cicd-demo
+  namespace: cicd
+spec:
+  selector:
+    app: cicd-demo
+    version: blue   # initially points to blue
+  ports:
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30010
+  type: NodePort
