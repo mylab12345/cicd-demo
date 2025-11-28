@@ -4,6 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "cicd-demo"
         IMAGE_TAG = "${env.BUILD_NUMBER}"
+        K8S_NAMESPACE = "cicd"
     }
 
     stages {
@@ -39,12 +40,40 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Load Image into Minikube') {
             steps {
                 sh '''
-                docker stop $IMAGE_NAME || true
-                docker rm $IMAGE_NAME || true
-                docker run -d --name $IMAGE_NAME -p 5010:5000 $IMAGE_NAME:latest
+                # Ensure Minikube is running
+                minikube status || minikube start --driver=docker
+
+                # Load images into Minikube’s Docker
+                minikube image load $IMAGE_NAME:$IMAGE_TAG
+                minikube image load $IMAGE_NAME:latest
+                '''
+            }
+        }
+
+        stage('Kubernetes Deploy') {
+            steps {
+                sh '''
+                # Create namespace if not exists
+                kubectl get ns $K8S_NAMESPACE || kubectl apply -f k8s/namespace.yaml
+
+                # Apply deployment and service manifests
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
+
+                # Wait for rollout to complete
+                kubectl rollout status deployment/$IMAGE_NAME -n $K8S_NAMESPACE --timeout=120s
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                kubectl get pods -n $K8S_NAMESPACE
+                kubectl get svc -n $K8S_NAMESPACE
                 '''
             }
         }
