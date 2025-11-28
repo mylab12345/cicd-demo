@@ -31,7 +31,7 @@ pipeline {
                 docker build -t cicd-demo .
                 docker stop cicd-demo || true
                 docker rm cicd-demo || true
-                docker run -d --name cicd-demo -p 5010:5010 cicd-demo
+                docker run -d --name cicd-demo -p 5010:5000 cicd-demo
                 '''
             }
         }
