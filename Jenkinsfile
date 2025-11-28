@@ -34,7 +34,7 @@ pipeline {
 
         stage('Code Quality') {
             steps {
-                withSonarQubeEnv('SonarQubeServer') {
+                withSonarQubeEnv('sonar-server') {
                     sh '''
                     ./venv/bin/pip install pylint
                     ./venv/bin/pylint app.py > pylint-report.txt || true
