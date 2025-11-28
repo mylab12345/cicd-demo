@@ -4,7 +4,10 @@ FROM python:3.13-slim
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first (better caching)
+# Install system dependencies (optional, for larger apps)
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first
 COPY requirements.txt .
 
 # Install dependencies

@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "cicd-demo"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -10,7 +15,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh '''#!/bin/bash
+                sh '''
                 python3 -m venv venv
                 ./venv/bin/pip install -r requirements.txt
                 '''
@@ -19,8 +24,17 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh '''#!/bin/bash
+                sh '''
                 ./venv/bin/pytest test_app.py
+                '''
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                sh '''
+                docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
                 '''
             }
         }
@@ -28,10 +42,9 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
-                docker build -t cicd-demo .
-                docker stop cicd-demo || true
-                docker rm cicd-demo || true
-                docker run -d --name cicd-demo -p 5010:5000 cicd-demo
+                docker stop $IMAGE_NAME || true
+                docker rm $IMAGE_NAME || true
+                docker run -d --name $IMAGE_NAME -p 5010:5000 $IMAGE_NAME:latest
                 '''
             }
         }
